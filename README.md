@@ -117,6 +117,7 @@ internal/timeparse/   "5 Januari 17.00"-style time parsing
   - A new day's check-in is allowed even if yesterday's check-out was forgotten; the bot then asks for the missing time.
   - A check-out *without* a time only closes a check-in from the last 16 hours, which still allows night shifts.
   - Late entries up to `MAX_BACKDATE_DAYS` (default 62) are slotted into the past.
+- **Time of a check-in/out without an explicit time** is when the message was *sent*, not when the bot processed it. Telegram queues messages while the bot is offline (up to ~24 h) and delivers them later. *Waktu Dicatat* still shows the processing time, so delays stay visible, and the user is told when their record used the earlier send time.
 - **Gemini** only turns a message into `{action, status, time, period, person}`. The bot validates every field itself and does all access checks and writes. Admin changes are only possible through explicit commands, never through free text. The employee list is never sent to Gemini.
 
 ---

@@ -115,7 +115,7 @@ func (h *Handler) allowAI(id int64) bool {
 // fromCommand handles /datang and /pulang [time] [wfo|wfh].
 func (h *Handler) fromCommand(c tele.Context, typ, payload string) error {
 	rest, status := splitStatus(payload)
-	now := time.Now().In(h.loc)
+	now := h.sentAt(c)
 	at, source := now, attendance.SourceLive
 	if rest != "" {
 		var err error
@@ -251,6 +251,9 @@ func (h *Handler) finalize(c tele.Context, p *pending, loc *attendanceLoc) error
 	verb := map[string]string{attendance.TypeIn: "Datang", attendance.TypeOut: "Pulang"}[p.typ]
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "✅ %s dicatat: %s", verb, fmtTime(saved.At))
+	if saved.Source == attendance.SourceLive && saved.RecordedAt.Sub(saved.At) > lateDelivery {
+		sb.WriteString("\n🕒 Dicatat sesuai jam pesanmu dikirim (bot sempat offline).")
+	}
 	if s := statusLabel(saved.Status); s != "" {
 		sb.WriteString("\n" + s)
 	}
@@ -295,7 +298,7 @@ func (h *Handler) onText(c tele.Context) error {
 
 	if h.nlu != nil && h.allowAI(u.TelegramID) {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		now := time.Now().In(h.loc)
+		now := h.sentAt(c) // relative times ("tadi jam 8") are relative to sending
 		in, err := h.nlu.Extract(ctx, text, now)
 		cancel()
 		if err == nil {
@@ -357,4 +360,21 @@ func (h *Handler) forgottenNote(ctx context.Context, tgID int64) string {
 	last := forgot[len(forgot)-1].At.In(h.loc)
 	fmt.Fprintf(&sb, "\nIsi jam pulangnya dengan mengetik, mis.: pulang %d %s 17.00", last.Day(), idfmt.Month(last.Month()))
 	return sb.String()
+}
+
+// lateDelivery: a message processed this long after it was sent (the bot was
+// offline and Telegram delivered it late) gets a note in the confirmation.
+const lateDelivery = 2 * time.Minute
+
+// sentAt is when the user sent the current message. Telegram queues messages
+// while the bot is offline and delivers them later, so attendance without an
+// explicit time must use the sending time, not the processing time.
+func (h *Handler) sentAt(c tele.Context) time.Time {
+	now := time.Now().In(h.loc)
+	if m := c.Message(); m != nil && m.Unixtime > 0 {
+		if t := time.Unix(m.Unixtime, 0).In(h.loc); !t.After(now) {
+			return t
+		}
+	}
+	return now
 }

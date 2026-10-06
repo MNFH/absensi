@@ -41,3 +41,27 @@ func TestAddressed(t *testing.T) {
 		t.Error("group reply rate limit should be per chat and per user")
 	}
 }
+
+func TestSentAt(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	h := &Handler{loc: loc}
+	b := &tele.Bot{}
+
+	// A message sent two hours ago (bot was offline) keeps its send time.
+	sent := time.Now().Add(-2 * time.Hour).Truncate(time.Second)
+	c := b.NewContext(tele.Update{Message: &tele.Message{Unixtime: sent.Unix()}})
+	if got := h.sentAt(c); !got.Equal(sent) || got.Location() != loc {
+		t.Errorf("queued message: got %v, want %v", got, sent)
+	}
+
+	// A timestamp in the future (clock skew) is never used.
+	c = b.NewContext(tele.Update{Message: &tele.Message{Unixtime: time.Now().Add(time.Hour).Unix()}})
+	if got := h.sentAt(c); got.After(time.Now()) {
+		t.Errorf("future timestamp used: %v", got)
+	}
+
+	// No message (e.g. a button press): current time.
+	if got := h.sentAt(b.NewContext(tele.Update{})); time.Since(got) > time.Second {
+		t.Errorf("no message: got %v", got)
+	}
+}
