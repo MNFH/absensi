@@ -1,0 +1,11 @@
+# secrets
+.env
+service-account*.json
+
+# build output and logs
+*.exe
+*.log
+
+# generated reports (may contain real names and phone numbers)
+contoh_rekap-*.xlsx
+rekap-*.xlsx
